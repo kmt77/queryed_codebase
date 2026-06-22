@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Three.js Interactive Scene</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #ffffff; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+
+<script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
+
+// 1. Setup Scene, Camera, and Renderer
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xffffff); // White background
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(4, 5, 8); 
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+
+// 2. Add Controls
+const orbit = new OrbitControls(camera, renderer.domElement);
+orbit.enableDamping = true; // Makes camera movement smoother
+orbit.dampingFactor = 0.05;
+orbit.target.set(0, 1, 0);
+
+const transformControls = new TransformControls(camera, renderer.domElement);
+scene.add(transformControls);
+
+// Prevent camera from moving while dragging objects
+transformControls.addEventListener('dragging-changed', function (event) {
+    orbit.enabled = !event.value;
+});
+
+// 3. Lighting
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+scene.add(ambientLight);
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+directionalLight.position.set(10, 12, 8);
+scene.add(directionalLight);
+
+// 4. Add a Grid Floor (Helps visualize space against the pure white backdrop)
+const gridHelper = new THREE.GridHelper(20, 20, 0xaaaaaa, 0xdddddd);
+gridHelper.position.y = -0.01; // Slightly below 0 to avoid flashing
+scene.add(gridHelper);
+
+// 5. Create the House Group
+const house = new THREE.Group();
+
+const wallGeometry = new THREE.BoxGeometry(2, 2, 2);
+const wallMaterial = new THREE.MeshPhongMaterial({ color: 0xdddddd }); 
+const walls = new THREE.Mesh(wallGeometry, wallMaterial);
+walls.position.y = 1; 
+house.add(walls);
+
+const roofGeometry = new THREE.ConeGeometry(1.6, 1.5, 4); 
+const roofMaterial = new THREE.MeshPhongMaterial({ color: 0x8b0000 }); 
+const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+roof.position.y = 2.75; 
+roof.rotation.y = Math.PI / 4; 
+house.add(roof);
+
+scene.add(house);
+
+// 6. Create the Tree Group
+const tree = new THREE.Group();
+
+const trunkGeometry = new THREE.CylinderGeometry(0.15, 0.2, 1.5, 8);
+const trunkMaterial = new THREE.MeshPhongMaterial({ color: 0x5c4033 }); 
+const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+trunk.position.y = 0.75; 
+tree.add(trunk);
+
+const leavesGeometry = new THREE.SphereGeometry(0.8, 8, 8);
+const leavesMaterial = new THREE.MeshPhongMaterial({ color: 0x2e8b57 }); 
+const leaves = new THREE.Mesh(leavesGeometry, leavesMaterial);
+leaves.position.y = 1.8; 
+tree.add(leaves);
+
+tree.position.set(-2.5, 0, 0); 
+scene.add(tree);
+
+// 7. Raycasting (Click to Select)
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const draggableObjects = [house, tree];
+
+window.addEventListener('pointerdown', (event) => {
+    // Standardize mouse coordinates
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(draggableObjects, true);
+
+    if (intersects.length > 0) {
+        // Trace back up to find the main top-level group (House or Tree)
+        let hitObject = intersects[0].object;
+        while (hitObject.parent && hitObject.parent !== scene) {
+            hitObject = hitObject.parent;
+        }
+        transformControls.attach(hitObject);
+    } else if (!transformControls.dragging) {
+        transformControls.detach();
+    }
+});
+
+// 8. Animation Loop
+function animate() {
+    requestAnimationFrame(animate);
+    orbit.update(); // Required if enableDamping is true
+    renderer.render(scene, camera);
+}
+
+animate();
+
+// Handle Window Resize
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
